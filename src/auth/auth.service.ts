@@ -1,7 +1,7 @@
 import {
   BadRequestException,
   Injectable,
-  UnauthorizedException,
+  UnauthorizedException
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -21,7 +21,7 @@ export class AuthService {
     private readonly RefreshTokenModel: Model<RefreshToken>,
 
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   async signUp(signupData: CreateAuthDto): Promise<string> {
     const { email, password } = signupData;
@@ -43,25 +43,38 @@ export class AuthService {
       user.password,
     );
     if (!passwordRight) throw new UnauthorizedException('Şifrə yalnışdır!');
+
+    // JWT token al
+    return this.generateUserToken(user._id)
+  }
+
+  // token almaq üçün ayrıca funksiya
+  async generateUserToken(userId) {
     const accessToken = this.jwtService.sign(
-      { email: loginData.email },
+      { userId },
       { expiresIn: 2 },
     );
     const refreshToken = uuidv4();
-    // refresh token DB -da saxla
-    const expiryDate = new Date();
-    console.log(expiryDate);
-
-    expiryDate.setDate(expiryDate.getDate() + 3);
-    console.log(expiryDate);
-
-    const a = await this.RefreshTokenModel.create({
-      token: refreshToken,
-      userId: user._id,
-      expiryDate: expiryDate,
-    });
-    console.log(a);
-
+    this.createRefreshToken(refreshToken, userId)
     return { accessToken, refreshToken };
   }
+
+
+  // refresh token DB -da saxla
+  async createRefreshToken(token: string, userId) {
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 3);
+    await this.RefreshTokenModel.create({
+      token, userId, expiryDate
+    })
+  }
+
+
+  async refreshToken(refreshtoken: string) {
+    const token = await this.RefreshTokenModel.findOneAndDelete({ token: refreshtoken, expiryDate: { $gte: new Date() } })
+    if (!token) throw new UnauthorizedException('Refresh token yoxdur')
+    return this.generateUserToken(token.userId)
+  }
+
+
 }

@@ -5,7 +5,7 @@ import { LoginDTO } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
@@ -18,4 +18,11 @@ export class AuthController {
   async login(@Body() loginData: LoginDTO) {
     return await this.authService.login(loginData);
   }
+
+  @Post('refresh')
+  async refreshToken(@Body() refreshtoken: string) {
+    return await this.authService.refreshToken(refreshtoken)
+  }
+
+
 }
