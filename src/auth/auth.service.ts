@@ -1,7 +1,7 @@
 import {
   BadRequestException,
   Injectable,
-  UnauthorizedException
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -12,6 +12,7 @@ import { CreateAuthDto } from './dto/create-auth.dto';
 import { LoginDTO } from './dto/login.dto';
 import { RefreshToken } from './schema/refresh-token.schema';
 import { UserAuth } from './schema/user-auth.schema';
+import { RefreshTokenDTO } from './dto/refreshtoken.dto';
 
 @Injectable()
 export class AuthService {
@@ -21,7 +22,7 @@ export class AuthService {
     private readonly RefreshTokenModel: Model<RefreshToken>,
 
     private jwtService: JwtService,
-  ) { }
+  ) {}
 
   async signUp(signupData: CreateAuthDto): Promise<string> {
     const { email, password } = signupData;
@@ -45,36 +46,37 @@ export class AuthService {
     if (!passwordRight) throw new UnauthorizedException('Şifrə yalnışdır!');
 
     // JWT token al
-    return this.generateUserToken(user._id)
+    return this.generateUserToken(user._id);
   }
 
   // token almaq üçün ayrıca funksiya
   async generateUserToken(userId) {
-    const accessToken = this.jwtService.sign(
-      { userId },
-      { expiresIn: 2 },
-    );
+    const accessToken = this.jwtService.sign({ userId }, { expiresIn: '1h' });
     const refreshToken = uuidv4();
-    this.createRefreshToken(refreshToken, userId)
+    this.createRefreshToken(refreshToken, userId);
     return { accessToken, refreshToken };
   }
 
-
   // refresh token DB -da saxla
   async createRefreshToken(token: string, userId) {
+    console.log('token', token);
+    console.log('userId', userId);
+
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 3);
-    await this.RefreshTokenModel.create({
-      token, userId, expiryDate
-    })
+    await this.RefreshTokenModel.findOneAndUpdate(
+      { userId },
+      { set: { expiryDate, token } },
+      { upsert: true },
+    );
   }
 
-
-  async refreshToken(refreshtoken: string) {
-    const token = await this.RefreshTokenModel.findOneAndDelete({ token: refreshtoken, expiryDate: { $gte: new Date() } })
-    if (!token) throw new UnauthorizedException('Refresh token yoxdur')
-    return this.generateUserToken(token.userId)
+  async refreshToken(RefreshTokenData: RefreshTokenDTO) {
+    const token = await this.RefreshTokenModel.findOne({
+      token: RefreshTokenData.refreshtoken,
+      expiryDate: { $gte: new Date() },
+    });
+    if (!token) throw new UnauthorizedException('Refresh token yoxdur');
+    return this.generateUserToken(token.userId);
   }
-
-
 }
